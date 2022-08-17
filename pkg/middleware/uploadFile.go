@@ -1,9 +1,11 @@
 package middleware
 
 import (
+	dto "bewaysbuck/dto/result"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 )
@@ -16,12 +18,44 @@ func UploadFile(next http.HandlerFunc) http.HandlerFunc {
 		// the Header and the size of the file
 		file, _, err := r.FormFile("image")
 
+		if err != nil && r.Method == "PATCH" {
+			ctx := context.WithValue(r.Context(), "dataFile", "false")
+			next.ServeHTTP(w, r.WithContext(ctx))
+		}
+
 		if err != nil {
 			fmt.Println(err)
 			json.NewEncoder(w).Encode("Error Retrieving the File")
 			return
 		}
 		defer file.Close()
+
+		// setup file type filtering
+		buff := make([]byte, 512)
+		_, err = file.Read(buff)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			response := dto.ErrorResult{Code: http.StatusInternalServerError, Message: err.Error()}
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		filetype := http.DetectContentType(buff)
+		if filetype != "image/jpeg" && filetype != "image/png" {
+			w.WriteHeader(http.StatusBadRequest)
+			response := dto.ErrorResult{Code: http.StatusBadRequest, Message: "The provided file format is not allowed. Please upload a JPEG or PNG image"}
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		_, err = file.Seek(0, io.SeekStart)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			response := dto.ErrorResult{Code: http.StatusInternalServerError, Message: err.Error()}
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
 		// fmt.Printf("Uploaded File: %+v\n", handler.Filename)
 		// fmt.Printf("File Size: %+v\n", handler.Size)
 		// fmt.Printf("MIME Header: %+v\n", handler.Header)

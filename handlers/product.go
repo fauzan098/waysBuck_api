@@ -116,6 +116,56 @@ func (h *handlerProduct) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	response := dto.SuccessResult{Code: http.StatusOK, Data: product}
 	json.NewEncoder(w).Encode(response)
 }
+
+func (h *handlerProduct) UpdateProduct(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	id, _ := strconv.Atoi(mux.Vars(r)["id"])
+
+	userInfo := r.Context().Value("userInfo").(jwt.MapClaims)
+	userId := int(userInfo["id"].(float64))
+
+	dataContext := r.Context().Value("dataFile")
+	filename := dataContext.(string)
+
+	price, _ := strconv.Atoi(r.FormValue("price"))
+
+	request := productdto.ProductRequest{
+		Title:  r.FormValue("title"),
+		Price:  price,
+		UserID: userId,
+	}
+
+	validation := validator.New()
+	err := validation.Struct(request)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response := dto.ErrorResult{Code: http.StatusInternalServerError, Message: err.Error()}
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	product, _ := h.ProductRepository.GetProduct(id)
+
+	product.Title = request.Title
+	product.Price = request.Price
+
+	if filename != "false" {
+		product.Image = filename
+	}
+
+	product, err = h.ProductRepository.UpdateProduct(product)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response := dto.ErrorResult{Code: http.StatusInternalServerError, Message: err.Error()}
+		json.NewEncoder(w).Encode(response)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	response := dto.SuccessResult{Code: http.StatusOK, Data: product}
+	json.NewEncoder(w).Encode(response)
+}
+
 func (h *handlerProduct) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -128,7 +178,7 @@ func (h *handlerProduct) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := h.ProductRepository.DeleteProduct(product)
+	deleteProduct, err := h.ProductRepository.DeleteProduct(product)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response := dto.ErrorResult{Code: http.StatusInternalServerError, Message: err.Error()}
@@ -137,7 +187,7 @@ func (h *handlerProduct) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Code: http.StatusOK, Data: convertResponseProduct(data)}
+	response := dto.SuccessResult{Code: http.StatusOK, Data: deleteProduct}
 	json.NewEncoder(w).Encode(response)
 }
 
