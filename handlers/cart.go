@@ -21,6 +21,8 @@ func HandlerCart(CartRepository repositories.CartRepository) *handlerCart {
 	return &handlerCart{CartRepository}
 }
 
+var transimg = "http://localhost:5000/uploads/"
+
 func (h *handlerCart) FindCarts(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -32,8 +34,18 @@ func (h *handlerCart) FindCarts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var responseCart []cartdto.CartResponse
+	for _, t := range carts {
+		responseCart = append(responseCart, convertResponseCart(t))
+	}
+
+	for i, t := range responseCart {
+		imagePath := transimg + t.Product.Image
+		responseCart[i].Product.Image = imagePath
+	}
+
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Code: http.StatusOK, Data: carts}
+	response := dto.SuccessResult{Code: http.StatusOK, Data: responseCart}
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -59,14 +71,21 @@ func (h *handlerCart) GetCart(w http.ResponseWriter, r *http.Request) {
 func (h *handlerCart) CreateCart(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "aplication/json")
 
+	var toppingsId []int
+	for _, r := range r.FormValue("toppingId") {
+		if int(r-'0') >= 0 {
+			toppingsId = append(toppingsId, int(r-'0'))
+		}
+	}
+
 	productId, _ := strconv.Atoi(r.FormValue("product_id"))
-	toppingId, _ := strconv.Atoi(r.FormValue("topping_id"))
 	transactionId, _ := strconv.Atoi(r.FormValue("transaction_id"))
 	qty, _ := strconv.Atoi(r.FormValue("qty"))
 	subAmount, _ := strconv.Atoi(r.FormValue("sub_amount"))
+
 	request := cartdto.CartRequest{
 		ProductId:     productId,
-		ToppingID:     toppingId,
+		ToppingID:     toppingsId,
 		TransactionId: transactionId,
 		Qty:           qty,
 		SubAmount:     subAmount,
@@ -81,9 +100,11 @@ func (h *handlerCart) CreateCart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	topping, _ := h.CartRepository.FindToppingsById(toppingsId)
+
 	cart := models.Cart{
 		ProductId:     request.ProductId,
-		ToppingID:     request.ToppingID,
+		Topping:       topping,
 		TransactionId: request.TransactionId,
 		Qty:           request.Qty,
 		SubAmount:     request.SubAmount,
@@ -109,14 +130,20 @@ func (h *handlerCart) UpdateCart(w http.ResponseWriter, r *http.Request) {
 
 	id, _ := strconv.Atoi(mux.Vars(r)["id"])
 
+	var toppingsId []int
+	for _, r := range r.FormValue("toppingId") {
+		if int(r-'0') >= 0 {
+			toppingsId = append(toppingsId, int(r-'0'))
+		}
+	}
+
 	productId, _ := strconv.Atoi(r.FormValue("product_id"))
-	toppingId, _ := strconv.Atoi(r.FormValue("topping_id"))
 	transactionId, _ := strconv.Atoi(r.FormValue("transaction_id"))
 	qty, _ := strconv.Atoi(r.FormValue("qty"))
 	subAmount, _ := strconv.Atoi(r.FormValue("sub_amount"))
 	request := cartdto.CartRequest{
 		ProductId:     productId,
-		ToppingID:     toppingId,
+		ToppingID:     toppingsId,
 		TransactionId: transactionId,
 		Qty:           qty,
 		SubAmount:     subAmount,
@@ -131,10 +158,15 @@ func (h *handlerCart) UpdateCart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var topping []models.Topping
+	if len(toppingsId) != 0 {
+		topping, _ = h.CartRepository.FindToppingsById(toppingsId)
+	}
+
 	cart, _ := h.CartRepository.GetCart(id)
 
 	cart.ProductId = request.ProductId
-	cart.ToppingID = request.ToppingID
+	cart.Topping = topping
 	cart.TransactionId = request.TransactionId
 	cart.Qty = request.Qty
 	cart.SubAmount = request.SubAmount
@@ -175,4 +207,15 @@ func (h *handlerCart) DeleteCart(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	response := dto.SuccessResult{Code: http.StatusOK, Data: deleteCart}
 	json.NewEncoder(w).Encode(response)
+}
+
+func convertResponseCart(t models.Cart) cartdto.CartResponse {
+	return cartdto.CartResponse{
+		ID:            t.ID,
+		Product:       t.Product,
+		Topping:       t.Topping,
+		TransactionId: t.TransactionId,
+		Qty:           t.Qty,
+		SubAmount:     t.SubAmount,
+	}
 }

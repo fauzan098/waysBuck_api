@@ -27,16 +27,17 @@ func (r *repository) FindTransactions() ([]models.Transaction, error) {
 
 func (r *repository) GetTransaction(ID int) (models.Transaction, error) {
 	var transaction models.Transaction
-	err := r.db.Preload("User").Preload("Cart").Preload("Cart.Product").Preload("Cart.Topping").First(&transaction).Error
+	err := r.db.Preload("User").Preload("Cart").Preload("Cart.Product").Preload("Cart.Topping").First(&transaction, ID).Error
 
 	return transaction, err
 }
 
 func (r *repository) CreateTransaction(transaction models.Transaction) (models.Transaction, error) {
-	err := r.db.Preload("User").Preload("Cart").Preload("Cart.Product").Preload("Cart.Topping").Create(&transaction).Error
+	err := r.db.Create(&transaction).Error
 
 	return transaction, err
 }
+
 func (r *repository) UpdateTransaction(transaction models.Transaction) (models.Transaction, error) {
 	err := r.db.Save(&transaction).Error
 
